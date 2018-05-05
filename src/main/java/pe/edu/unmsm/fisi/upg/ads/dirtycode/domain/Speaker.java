@@ -1,5 +1,7 @@
 package pe.edu.unmsm.fisi.upg.ads.dirtycode.domain;
 
+import static org.hamcrest.CoreMatchers.instanceOf;
+
 import java.util.Arrays;
 import java.util.List;
 
@@ -10,7 +12,7 @@ public class Speaker {
 	private String firstName;
 	private String lastName;
 	private String email;
-	private int exp;
+	private int yearsExperience;
 	private boolean hasBlog;
 	private String blogURL;
 	private WebBrowser browser;
@@ -18,114 +20,117 @@ public class Speaker {
 	private String employer;
 	private int registrationFee;
 	private List<Session> sessions;
+	
+	static final int[] MINIMUM_YEARS_EXPERIENCE = 	{0		,2		,4		,6};
+	static final int[] MAXIMUM_YEARS_EXPERIENCE = 	{1		,3		,5		,9};
+	static final int[] REGISTRATION_FEE_VALUE =		{500	,250	,100	,50};
 
-	public Integer register(IRepository repository) throws Exception {
-		Integer speakerId = null;
-		boolean good = false;
-		boolean appr = false;
-		//String[] nt = new String[] { "Microservices", "Node.js", "CouchDB", "KendoUI", "Dapper", "Angular2" };
-		String[] ot = new String[] { "Cobol", "Punch Cards", "Commodore", "VBScript" };
+	public Integer register(IRepository repository) throws Exception {		
+		Integer speakerId = null;				
+		this.validateRegistration();		
+		this.calculateRegistrationFee();
+		speakerId =this.saveSpeakerToDB(repository);
 		
-		//DEFECT #5274 DA 12/10/2012
-		//We weren't filtering out the prodigy domain so I added it.
-		List<String> domains = Arrays.asList("aol.com", "hotmail.com", "prodigy.com", "compuserve.com");
-		
-		
-		
-		if (!this.firstName.isEmpty()) {
-			if (!this.lastName.isEmpty()) {
-				if (!this.email.isEmpty()) {
-					//put list of employers in array
-					List<String> emps = Arrays.asList("Pluralsight", "Microsoft", "Google", "Fog Creek Software", "37Signals", "Telerik");
-					
-					//DFCT #838 Jimmy
-					//We're now requiring 3 certifications so I changed the hard coded number. Boy, programming is hard.
-					good = ((this.exp > 10 || this.hasBlog || this.certifications.size() > 3 || emps.contains(this.employer)));
-					
-					if (!good) {
-						//need to get just the domain from the email
-						String[] splitted = this.email.split("@");
-						String emailDomain = splitted[splitted.length - 1];
-
-						if (!domains.contains(emailDomain) && (!(browser.getName() == WebBrowser.BrowserName.InternetExplorer && browser.getMajorVersion() < 9)))
-						{
-							good = true;
-						}
-					}
-					
-					if (good) {
-						//DEFECT #5013 CO 1/12/2012
-						//We weren't requiring at least one session
-						if (this.sessions.size() != 0) {
-							for (Session session : sessions) {
-								//for (String tech : nt) {
-								//    if (session.getTitle().contains(tech) {
-								//        session.setApproved(true);
-								//        break;
-								//    }
-								//}
-								for (String tech : ot) {
-									if (session.getTitle().contains(tech) || session.getDescription().contains(tech)) {
-										session.setApproved(false);
-										break;
-									} else {
-										session.setApproved(true);
-										appr = true;
-									}
-								}
-								
-							}
-						} else {
-							throw new IllegalArgumentException("Can't register speaker with no sessions to present.");
-						}
-						
-						if (appr) {
-							//if we got this far, the speaker is approved
-							//let's go ahead and register him/her now.
-							//First, let's calculate the registration fee.
-							//More experienced speakers pay a lower fee.
-							if (this.exp <= 1) {
-								this.registrationFee = 500;
-							}
-							else if (exp >= 2 && exp <= 3) {
-								this.registrationFee = 250;
-							}
-							else if (exp >= 4 && exp <= 5) {
-								this.registrationFee = 100;
-							}
-							else if (exp >= 6 && exp <= 9) {
-								this.registrationFee = 50;
-							}
-							else {
-								this.registrationFee = 0;
-							}
-							
-							//Now, save the speaker and sessions to the db.
-							try {
-								speakerId = repository.saveSpeaker(this);
-							} catch (Exception e) {
-								//in case the db call fails 
-							}
-						} else {
-							throw new NoSessionsApprovedException("No sessions approved.");
-						}
-					} else {
-						throw new SpeakerDoesntMeetRequirementsException("Speaker doesn't meet our abitrary and capricious standards.");
-					}
-				} else {
-					throw new IllegalArgumentException("Email is required.");
-				}				
-			} else {
-				throw new IllegalArgumentException("Last name is required.");
-			}			
-		} else {
-			throw new IllegalArgumentException("First Name is required");
-		}
-			
-		//if we got this far, the speaker is registered.
-		return speakerId;
+		return speakerId;		
 	}
 
+	public void validateRegistration()  throws Exception   {		
+		this.validateDataEmptyAndSession();		
+		if(this.hasRequirementsComplete() || !this.isInDomainOrBrowser() ) {
+			this.approvedSession();
+		}else {
+			throw new SpeakerDoesntMeetRequirementsException(
+					"Speaker doesn't meet our abitrary and capricious standards.");
+		}			
+	}
+	
+	public void validateDataEmptyAndSession()  {
+		if (this.firstName.isEmpty())
+			throw new IllegalArgumentException("First Name is required");
+		if (this.lastName.isEmpty())
+			throw new IllegalArgumentException("Last name is required.");
+		if (this.email.isEmpty())
+			throw new IllegalArgumentException("Email is required.");
+		if (this.sessions.size() == 0) 
+			throw new IllegalArgumentException("Can't register speaker with no sessions to present.");
+	}
+	
+	public boolean hasRequirementsComplete() {
+		if (this.yearsExperience > 10) return true;
+		if (this.hasBlog) return true;
+		if (this.certifications.size() > 3) return true;
+		if (this.isInEmployerList()) return true;
+		
+		return false;		
+	}
+	
+	public boolean isInEmployerList() {
+		List<String> employerList = Arrays.asList("Pluralsight", "Microsoft", "Google", "Fog Creek Software", "37Signals","Telerik");
+		return employerList.contains(this.getEmployer());
+	}
+			
+	public boolean isInDomainOrBrowser() {
+		return this.isInDomainList() || this.isBrowserValid();
+	}	
+	public boolean isInDomainList() {
+		// need to get just the domain from the email
+		String[] splitted = this.getEmail().split("@");
+		String emailDomain = splitted[splitted.length - 1];
+		List<String> domainList = Arrays.asList("aol.com", "hotmail.com", "prodigy.com", "compuserve.com");
+		
+		return domainList.contains(emailDomain);								
+	}
+	
+	public boolean isBrowserValid() {		
+		return browser.getName() == WebBrowser.BrowserName.InternetExplorer	&& browser.getMajorVersion() < 9;
+	}
+	
+	
+	public void approvedSession()  throws Exception  {			
+		
+		String[] technologies = new String[] { "Cobol", "Punch Cards", "Commodore", "VBScript" };
+		boolean isApprovedSession = false;
+				
+		for (Session session : this.getSessions()) {
+			for (String tech : technologies) {
+				if (session.getTitle().contains(tech) || session.getDescription().contains(tech)) {
+					session.setApproved(false);
+					break;
+				} else {
+					session.setApproved(true);		
+					isApprovedSession = true;
+				}
+			}
+		}
+		if(!isApprovedSession) throw new NoSessionsApprovedException("No sessions approved.");
+	}	
+	
+	
+	public void  calculateRegistrationFee() {
+		
+		int registrationFee = 0;
+		for(int i=0; i < MINIMUM_YEARS_EXPERIENCE.length; i++) {
+			if(MINIMUM_YEARS_EXPERIENCE[i] <= this.getYearsExperience() && this.getYearsExperience() <= MAXIMUM_YEARS_EXPERIENCE[i]) {
+				registrationFee = REGISTRATION_FEE_VALUE[i];				
+				break;
+			}
+		}
+		this.setRegistrationFee(registrationFee);			
+	}	
+	
+	public Integer saveSpeakerToDB(IRepository repository) {
+		// Now, save the speaker and sessions to the db.
+		Integer speakerId = null;
+		try {
+			speakerId = repository.saveSpeaker(this);
+		} catch (Exception e) {
+			// in case the db call fails
+		}
+		
+		return speakerId;		
+	}
+
+	
 	public List<Session> getSessions() {
 		return sessions;
 	}
@@ -158,12 +163,14 @@ public class Speaker {
 		this.email = email;
 	}
 
-	public int getExp() {
-		return exp;
+	
+
+	public int getYearsExperience() {
+		return yearsExperience;
 	}
 
-	public void setExp(int exp) {
-		this.exp = exp;
+	public void setYearsExperience(int yearsExperience) {
+		this.yearsExperience = yearsExperience;
 	}
 
 	public boolean isHasBlog() {

@@ -97,11 +97,12 @@ public class SpeakerTest {
 
 	@Test(expected = SpeakerDoesntMeetRequirementsException.class)
 	public void register_DoesntAppearExceptionalAndHasAncientEmail_ThrowsNoSessionsApprovedException() throws Exception {
+		
 		Speaker speakerThatDoesntAppearExceptional = getSpeakerThatWouldBeApproved();
 		speakerThatDoesntAppearExceptional.setHasBlog(false);
-		speakerThatDoesntAppearExceptional.setEmail("name@aol.com");
-
+		speakerThatDoesntAppearExceptional.setEmail("name@aol.com");		
 		speakerThatDoesntAppearExceptional.register(repository);
+		
 	}
 
 	private Speaker getSpeakerThatWouldBeApproved() {
@@ -113,7 +114,7 @@ public class SpeakerTest {
 		speaker.setEmployer("Example Employer");
 		speaker.setHasBlog(true);
 		speaker.setBrowser(new WebBrowser("test", 1));
-		speaker.setExp(1);
+		speaker.setYearsExperience(1);
 		speaker.setCertifications(new ArrayList<String>());
 		speaker.setBlogURL("");
 		speaker.setSessions(Arrays.asList(new Session("test title", "test description")));
